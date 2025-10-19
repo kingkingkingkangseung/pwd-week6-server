@@ -105,9 +105,9 @@ class UsersController {
   getAllUsers = asyncHandler(async (req, res) => {
     const users = await usersService.getAllUsers();
 
-    res.json({
+    res.status(200).json({
       success: true,
-      data: { users },
+      users,
     });
   });
 
