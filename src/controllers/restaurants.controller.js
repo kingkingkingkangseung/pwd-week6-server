@@ -1,4 +1,4 @@
-const restaurantService = require('../services/restaurants.service');
+﻿const restaurantService = require('../services/restaurants.service');
 const asyncHandler = require('../utils/asyncHandler');
 
 const normaliseMenu = (menu) => {
@@ -15,21 +15,13 @@ const normaliseMenu = (menu) => {
 
 exports.getRestaurants = asyncHandler(async (req, res) => {
   const restaurants = await restaurantService.getAllRestaurants();
-  res.set('Cache-Control', 'no-store');
-  if (process.env.NODE_ENV === 'test') {
-    return res.json({ data: restaurants });
-  }
-  return res.json(restaurants);
+  res.json({ data: restaurants });
 });
 
 exports.getPopularRestaurants = asyncHandler(async (req, res) => {
   const limit = Number(req.query.limit) || 5;
   const restaurants = await restaurantService.getPopularRestaurants(limit);
-  res.set('Cache-Control', 'no-store');
-  if (process.env.NODE_ENV === 'test') {
-    return res.json({ data: restaurants });
-  }
-  return res.json(restaurants);
+  res.json({ data: restaurants });
 });
 
 exports.getRestaurant = asyncHandler(async (req, res) => {
@@ -48,12 +40,6 @@ exports.createRestaurant = asyncHandler(async (req, res) => {
     ...req.body,
     recommendedMenu: normaliseMenu(req.body?.recommendedMenu)
   };
-  const required = ['name', 'category', 'location'];
-  const missing = required.find((k) => !payload[k]);
-  if (missing) {
-    res.status(400).json({ error: { message: `'${missing}' is required` } });
-    return;
-  }
 
   const restaurant = await restaurantService.createRestaurant(payload);
   res.status(201).json({ data: restaurant });

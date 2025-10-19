@@ -1,4 +1,4 @@
-﻿const restaurantService = require('../src/services/restaurants.service');
+﻿﻿const restaurantService = require('../src/services/restaurants.service');
 
 describe('RestaurantService', () => {
   beforeEach(async () => {

@@ -1,4 +1,4 @@
-﻿const express = require('express');
+﻿﻿const express = require('express');
 const restaurantsController = require('../controllers/restaurants.controller');
 const { isAdmin } = require('../middleware/auth.middleware');
 
@@ -10,9 +10,8 @@ router.get('/', restaurantsController.getRestaurants);
 router.get('/:id', restaurantsController.getRestaurant);
 
 // 관리자 전용 엔드포인트
-const requireAdmin = process.env.NODE_ENV === 'test' ? (_req, _res, next) => next() : isAdmin;
-router.post('/', requireAdmin, restaurantsController.createRestaurant);
-router.put('/:id', requireAdmin, restaurantsController.updateRestaurant);
-router.delete('/:id', requireAdmin, restaurantsController.deleteRestaurant);
+router.post('/', isAdmin, restaurantsController.createRestaurant);
+router.put('/:id', isAdmin, restaurantsController.updateRestaurant);
+router.delete('/:id', isAdmin, restaurantsController.deleteRestaurant);
 
 module.exports = router;

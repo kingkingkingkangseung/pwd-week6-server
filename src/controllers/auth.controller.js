@@ -1,54 +1,52 @@
-﻿// src/controllers/auth.controller.js
+﻿-// src/controllers/auth.controller.js
 const passport = require('passport');
 const authService = require('../services/auth.service');
 const asyncHandler = require('../utils/asyncHandler');
 
 class AuthController {
   /**
-   * ????????
+   * 회원가입
    * POST /api/auth/register
    */
   register = asyncHandler(async (req, res) => {
-    const email = (req.body?.email || '').toLowerCase().trim();
-    const password = (req.body?.password || '').toString();
-    const name = (req.body?.name || req.body?.fullName || req.body?.username || req.body?.displayName || '').toString().trim();
+    const { email, password, name } = req.body;
 
-    // ?????????
+    // 유효성 검사
     if (!email || !password || !name) {
       return res.status(400).json({
         success: false,
-        message: '?????? ???????, ?????? ??????????',
+        message: '이메일, 비밀번호, 이름은 필수입니다.',
       });
     }
 
     if (password.length < 6) {
       return res.status(400).json({
         success: false,
-        message: '???????????? 6??????????????????',
+        message: '비밀번호는 최소 6자 이상이어야 합니다.',
       });
     }
 
     const user = await authService.register({ email, password, name });
 
-    // ?????????????? ??????
+    // 회원가입 후 자동 로그인
     req.login(user, (err) => {
       if (err) {
         return res.status(500).json({
           success: false,
-          message: '??????????????.',
+          message: '회원가입 후 로그인 중 오류가 발생했습니다.',
         });
       }
 
       res.status(201).json({
         success: true,
-        message: '?????????? ??????????????',
+        message: '회원가입이 완료되었습니다.',
         data: { user },
       });
     });
   });
 
   /**
-   * ???? ??????
+   * 로컬 로그인
    * POST /api/auth/login
    */
   login = (req, res, next) => {
@@ -56,14 +54,14 @@ class AuthController {
       if (err) {
         return res.status(500).json({
           success: false,
-          message: '??????????????.',
+          message: '로그인 중 오류가 발생했습니다.',
         });
       }
 
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: info.message || '???????? ????????????.',
+          message: info.message || '로그인에 실패했습니다.',
         });
       }
 
@@ -71,13 +69,13 @@ class AuthController {
         if (err) {
           return res.status(500).json({
             success: false,
-            message: '??????????????.',
+            message: '로그인 중 오류가 발생했습니다.',
           });
         }
 
         return res.json({
           success: true,
-          message: '??????????????.',
+          message: '로그인되었습니다.',
           data: { user },
         });
       });
@@ -85,67 +83,110 @@ class AuthController {
   };
 
   /**
-   * ????????
+   * 로그아웃
    * POST /api/auth/logout
    */
   logout = asyncHandler(async (req, res) => {
-    // 로그인 여부와 상관 없이 세션 쿠키 제거 + 세션 파기
-    try {
-      if (req.isAuthenticated && req.isAuthenticated()) {
-        await new Promise((resolve, reject) => req.logout(err => err ? reject(err) : resolve()));
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({
+          success: false,
+          message: '로그아웃 중 오류가 발생했습니다.',
+        });
       }
-    } catch {} 
-    try {
-      await new Promise((resolve) => req.session?.destroy(() => resolve()));
-    } catch {} 
-    res.clearCookie(process.env.SESSION_NAME || 'sessionId');
-    return res.json({ success: true, message: 'logged out' });
+
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({
+            success: false,
+            message: '세션 삭제 중 오류가 발생했습니다.',
+          });
+        }
+
+        res.clearCookie('sessionId');
+        res.json({
+          success: true,
+          message: '로그아웃되었습니다.',
+        });
+      });
+    });
   });
 
   /**
-   * ???? ?????????? ???
+   * 현재 사용자 정보 조회
    * GET /api/auth/me
    */
   getCurrentUser = asyncHandler(async (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    res.set('Vary', 'Cookie');
     if (!req.user) {
-      return res.json({ success: true, status: 'ok', authenticated: false, isAuthenticated: false, user: null, data: null });
+      return res.status(401).json({
+        success: false,
+        message: '로그인이 필요합니다.',
+      });
     }
+
     const user = await authService.getCurrentUser(req.user._id);
-    return res.json({ success: true, status: 'ok', authenticated: true, isAuthenticated: true, user, data: { user } });
+
+    res.json({
+      success: true,
+      data: { user },
+    });
   });
 
   /**
-   * ???? OAuth ???
+   * 구글 OAuth 콜백
    * GET /api/auth/google/callback
    */
   googleCallback = (req, res, next) => {
     passport.authenticate('google', (err, user, info) => {
+      console.log('[Google Callback] Started', {
+        hasError: !!err,
+        hasUser: !!user,
+        sessionID: req.sessionID,
+        cookies: req.headers.cookie
+      });
+
       if (err) {
+        console.error('[Google Callback] Authentication error:', err);
         return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=server_error`);
       }
 
       if (!user) {
+        console.error('[Google Callback] No user found:', info);
         return res.redirect(
           `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=${encodeURIComponent(
-            info.message || '??????????'
+            info.message || '로그인 실패'
           )}`
         );
       }
 
       req.login(user, (err) => {
         if (err) {
+          console.error('[Google Callback] Login error:', err);
           return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=login_error`);
         }
 
-        return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/dashboard`);
+        console.log('[Google Callback] Login successful', {
+          userId: user._id,
+          sessionID: req.sessionID,
+          sessionSaved: req.session ? 'yes' : 'no'
+        });
+
+        // 세션 저장 강제 실행
+        req.session.save((err) => {
+          if (err) {
+            console.error('[Google Callback] Session save error:', err);
+            return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=session_error`);
+          }
+
+          console.log('[Google Callback] Session saved successfully');
+          return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:3000'}/dashboard`);
+        });
       });
     })(req, res, next);
   };
 
   /**
-   * ??????OAuth ???
+   * 네이버 OAuth 콜백
    * GET /api/auth/naver/callback
    */
   naverCallback = (req, res, next) => {
@@ -163,7 +204,7 @@ class AuthController {
         console.error('[Naver Callback] No user found:', info);
         return res.redirect(
           `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=${encodeURIComponent(
-            info.message || '??????????'
+            info.message || '로그인 실패'
           )}`
         );
       }
@@ -183,7 +224,3 @@ class AuthController {
 }
 
 module.exports = new AuthController();
-
-
-
-

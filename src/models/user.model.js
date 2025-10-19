@@ -1,69 +1,95 @@
 // src/models/user.model.js
 const mongoose = require('mongoose');
-const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
-const UserSchema = new mongoose.Schema(
+const userSchema = new mongoose.Schema(
   {
-    email: { type: String, required: true, unique: true, index: true, lowercase: true, trim: true },
-    name: { type: String, required: true, trim: true },
-    avatar: { type: String, default: null },
-    provider: { type: String, enum: ['local', 'google', 'naver'], default: 'local', index: true },
-    providerId: { type: String, default: null, index: true },
-    password: { type: String, select: false },
-    userType: { type: String, enum: ['user', 'admin'], default: 'user', index: true },
-    isActive: { type: Boolean, default: true },
+    // 로컬 계정 필드
+    email: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: function () {
+        return this.provider === 'local';
+      },
+    },
+    
+    // OAuth 필드
+    provider: {
+      type: String,
+      enum: ['local', 'google', 'naver'],
+      default: 'local',
+    },
+    providerId: {
+      type: String,
+      sparse: true,
+    },
+    
+    // 프로필 정보
+    name: {
+      type: String,
+      required: true,
+    },
+    avatar: {
+      type: String,
+    },
+    
+    // 계정 상태
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    
+    // 사용자 유형
+    userType: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-function hashPassword(plain) {
-  const iterations = 120000;
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(plain, salt, iterations, 32, 'sha256').toString('hex');
-  return `pbkdf2$${iterations}$${salt}$${hash}`;
-}
-
-function verifyPassword(plain, stored) {
-  if (!stored) return false;
-  if (stored.startsWith('pbkdf2$')) {
-    const [, iterStr, salt, hash] = stored.split('$');
-    const iterations = parseInt(iterStr, 10) || 120000;
-    const calc = crypto.pbkdf2Sync(plain, salt, iterations, 32, 'sha256').toString('hex');
-    return crypto.timingSafeEqual(Buffer.from(calc, 'hex'), Buffer.from(hash, 'hex'));
+// 이메일과 providerId의 복합 유니크 인덱스 (같은 이메일도 provider가 다르면 허용)
+userSchema.index({ email: 1, provider: 1 }, { unique: true });
+// 동일 provider 내에서 providerId는 유일 (OAuth 사용자만 적용)
+userSchema.index(
+  { provider: 1, providerId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { providerId: { $type: 'string' } }
   }
-  return plain === stored;
-}
+);
 
-UserSchema.pre('save', function (next) {
-  if (this.provider === 'local' && this.isModified('password') && this.password && !String(this.password).startsWith('pbkdf2$')) {
-    this.password = hashPassword(this.password);
+// 비밀번호 해싱 미들웨어
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  
+  if (this.password) {
+    this.password = await bcrypt.hash(this.password, 12);
   }
   next();
 });
 
-UserSchema.methods.comparePassword = async function (candidatePassword) {
-  if (this.provider !== 'local') return false;
-  if (this.password == null) {
-    const fresh = await this.constructor.findById(this._id).select('+password');
-    if (!fresh || fresh.password == null) return false;
-    return verifyPassword(candidatePassword, fresh.password);
-  }
-  return verifyPassword(candidatePassword, this.password);
+// 비밀번호 검증 메서드
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
-UserSchema.set('toJSON', {
-  transform: (_doc, ret) => {
-    delete ret.password;
-    return ret;
-  },
-});
+// 비밀번호 필드 제외 메서드
+userSchema.methods.toJSON = function () {
+  const obj = this.toObject();
+  delete obj.password;
+  return obj;
+};
 
-UserSchema.set('toObject', {
-  transform: (_doc, ret) => {
-    delete ret.password;
-    return ret;
-  },
-});
+const User = mongoose.model('User', userSchema);
 
-module.exports = mongoose.models.User || mongoose.model('User', UserSchema);
-
+module.exports = User;
