@@ -10,8 +10,20 @@ const router = express.Router();
 // 회원가입
 router.post('/register', isNotAuthenticated, authController.register);
 
-// 로그인
-router.post('/login', isNotAuthenticated, authController.login);
+// 로그인 (요청 바디/헤더 로깅으로 디버깅)
+router.post(
+  '/login',
+  isNotAuthenticated,
+  (req, _res, next) => {
+    try {
+      console.log('[Auth/Login] content-type:', req.headers['content-type']);
+      console.log('[Auth/Login] body keys:', Object.keys(req.body || {}));
+      console.log('[Auth/Login] sample:', { email: req.body?.email, hasPassword: !!req.body?.password });
+    } catch (_) {}
+    next();
+  },
+  authController.login
+);
 
 // 로그아웃
 router.post('/logout', isAuthenticated, authController.logout);

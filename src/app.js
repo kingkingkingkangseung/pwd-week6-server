@@ -18,12 +18,14 @@ function createApp() {
   // 프록시(예: Render, Vercel) 뒤에서 HTTPS 스킴을 신뢰하여 Secure 쿠키가 정상 설정되도록 함
   app.set('trust proxy', 1);
 
-  // CORS 설정 - 로컬 개발 및 배포 환경 대응
+  // Body parser는 인증 미들웨어보다 먼저 등록되어야 함
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  // CORS 설정 - 로컬 개발 및 배포 환경 대응 (프리플라이트 허용 포함)
   const corsOptions = getCorsConfig();
   app.use(cors(corsOptions));
   app.options(/.*/, cors(corsOptions));
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
 
   // 세션 설정
   const sessionConfig = {
