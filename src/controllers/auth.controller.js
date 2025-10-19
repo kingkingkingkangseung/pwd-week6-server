@@ -1,4 +1,4 @@
-﻿-// src/controllers/auth.controller.js
+﻿// src/controllers/auth.controller.js
 const passport = require('passport');
 const authService = require('../services/auth.service');
 const asyncHandler = require('../utils/asyncHandler');
